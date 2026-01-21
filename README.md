@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # Flow Visualizer [BETA] 0.0.4 — Explicação do Código
+=======
+# Flow Visualizer [BETA] 0.0.3
+>>>>>>> 22bf2bdcd85e207c453843ae523a4439aeec496d
 
 Este projeto renderiza um fluxo exportado do Blip (JSON) como um grafo visual:
 - Cada **state** vira um **card** (“node”).
