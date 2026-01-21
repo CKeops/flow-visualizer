@@ -1,0 +1,1300 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Flow Visualizer [BETA] 0.0.1</title>
+
+  <style>
+    :root {
+      --bg: #313336;
+      --card: #ffffff;
+      --stroke: #94a3b8;
+      --stroke2: #64748b;
+      --blue: #0ea5e9;
+
+      --shadow: 0 10px 30px rgba(0, 0, 0, .08);
+      --radius: 12px;
+
+      --cardW: 360px;
+      --pad: 70px;
+
+      /* espaçamentos (base) */
+      --levelGapY: 260px;
+      --nodeGapX: 160px;
+      --treeGapX: 300px;
+      --islandGapX: 300px;
+      --loopPad: 26px;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    header {
+      position: fixed;
+      inset: 0 0 auto 0;
+      padding: 12px 14px;
+      background: rgba(244, 246, 251, .88);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(148, 163, 184, .35);
+      z-index: 50;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    header .left {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    header .hint {
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    header .right {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button,
+    label.upload {
+      padding: 10px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, .45);
+      background: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      user-select: none;
+    }
+
+    label.upload input {
+      display: none;
+    }
+
+    input[type="search"] {
+      width: 320px;
+      max-width: 55vw;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, .45);
+      outline: none;
+      background: #fff;
+      font-size: 14px;
+    }
+
+    .kbd {
+      font-size: 12px;
+      color: #64748b;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, .35);
+      background: #fff;
+    }
+
+    .viewport {
+      position: absolute;
+      inset: 56px 0 0 0;
+      overflow: hidden;
+      cursor: grab;
+    }
+
+    .viewport.panning {
+      cursor: grabbing;
+    }
+
+    #board {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    #canvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+
+    svg {
+      position: absolute;
+      left: 0;
+      top: 0;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    /* Nodes */
+    .node {
+      position: absolute;
+      width: var(--cardW);
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border-left: 6px solid #4f46e5;
+      padding: 14px 14px 12px;
+      user-select: none;
+      transition: outline .12s ease, box-shadow .12s ease, opacity .12s ease;
+      cursor: grab;
+    }
+
+    .node:active {
+      cursor: grabbing;
+    }
+
+    .node[data-kind="decision"] {
+      border-left-color: #f59e0b;
+      background: #fff7ed;
+    }
+
+    .node[data-kind="redirect"] {
+      border-left-color: #0ea5e9;
+    }
+
+    .node[data-kind="error"] {
+      border-left-color: #ef4444;
+    }
+
+    .title {
+      font-weight: 800;
+      font-size: 14px;
+      margin: 0 0 6px;
+      line-height: 1.2;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .meta {
+      color: #64748b;
+      font-size: 12px;
+      margin: 0 0 10px;
+    }
+
+    .badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 2px 0 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, .35);
+      background: rgba(148, 163, 184, .12);
+      color: #0f172a;
+    }
+
+    .badge.root {
+      background: rgba(79, 70, 229, .12);
+      border-color: rgba(79, 70, 229, .25);
+      color: #3730a3;
+    }
+
+    .badge.js {
+      background: rgba(245, 158, 11, .16);
+      border-color: rgba(245, 158, 11, .35);
+      color: #7c2d12;
+    }
+
+    .badge.http {
+      background: rgba(14, 165, 233, .14);
+      border-color: rgba(14, 165, 233, .35);
+      color: #0c4a6e;
+    }
+
+    .msgs {
+      border-top: 1px dashed rgba(148, 163, 184, .5);
+      padding-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .msg {
+      font-size: 13px;
+      color: #0f172a;
+      background: rgba(148, 163, 184, .12);
+      border: 1px solid rgba(148, 163, 184, .22);
+      padding: 8px 10px;
+      border-radius: 10px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Edges */
+    path.edge {
+      stroke: var(--stroke);
+      stroke-width: 2;
+      fill: none;
+      marker-end: url(#arrow);
+      opacity: .92;
+      transition: stroke-width .12s ease, opacity .12s ease, stroke .12s ease;
+      pointer-events: stroke;
+      /* clicavel na linha */
+      cursor: pointer;
+    }
+
+    path.edge.alt {
+      stroke: var(--stroke2);
+      opacity: .85;
+    }
+
+    /* Search */
+    .dim {
+      opacity: .18;
+      filter: grayscale(.35);
+    }
+
+    .highlight {
+      outline: 3px solid rgba(14, 165, 233, .35);
+      outline-offset: 2px;
+    }
+
+    /* Selection */
+    .selected {
+      outline: 3px solid rgba(14, 165, 233, .62);
+      outline-offset: 3px;
+      box-shadow: 0 12px 35px rgba(14, 165, 233, .22), var(--shadow);
+    }
+
+    .edge-selected {
+      opacity: 1 !important;
+      stroke-width: 3.6 !important;
+      stroke: var(--blue) !important;
+      marker-end: url(#arrowBlue) !important;
+    }
+
+    /* Info bar */
+    #infoBar {
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      z-index: 60;
+      background: rgba(255, 255, 255, .92);
+      border: 1px solid rgba(148, 163, 184, .35);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .10);
+      max-width: min(820px, calc(100vw - 28px));
+      font-size: 13px;
+      color: #0f172a;
+      display: none;
+    }
+
+    #infoBar b {
+      font-weight: 800;
+    }
+
+    #infoBar .muted {
+      color: #64748b;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="left">
+      <h1>Flow Visualizer [BETA] 0.0.1</h1>
+      <span class="hint">
+        Aqui você pode :
+        <br>
+        <br>
+        >>> Clicar no bloco para seleciona-lo e ver as suas ligações
+        <br>
+        <br>
+        >>> Arrastar o bloco
+        <br>
+        <br>
+        >>> Rolar a bolinha do mouse para dar ou tirar zoom
+        <br>
+        <br>
+        >>> Resetar a visualização no botão "Reset"
+        <br>
+        <br>
+        >>> Pesquisar blocos
+      </span>
+    </div>
+
+    <div class="right">
+      <label class="upload">Upload JSON do fluxo <input id="file" type="file" accept=".json,application/json"></label>
+      <button id="loadBtn" style="display: none;">Carregar fluxo.json</button>
+      <button id="fitBtn">Ver fluxo inteiro</button>
+      <button id="zoomIn">+</button>
+      <button id="zoomOut">-</button>
+      <button id="resetView">Resetar visualização</button>
+      <input id="search" type="search" placeholder="Buscar por título / id / mensagem…">
+      <span class="kbd" id="zoomLabel">100%</span>
+    </div>
+  </header>
+
+  <div class="viewport" id="viewport">
+    <div id="board">
+      <svg id="wires">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"></path>
+          </marker>
+          <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#0ea5e9"></path>
+          </marker>
+        </defs>
+      </svg>
+      <div id="canvas"></div>
+    </div>
+  </div>
+
+  <div id="infoBar"></div>
+
+  <script>
+    /* =======================
+       Helpers
+    ======================= */
+    const viewport = document.getElementById("viewport");
+    const board = document.getElementById("board");
+    const canvas = document.getElementById("canvas");
+    const svg = document.getElementById("wires");
+    const zoomLabel = document.getElementById("zoomLabel");
+    const infoBar = document.getElementById("infoBar");
+
+    const safeStr = x => (x ?? "").toString();
+    function escapeHtml(str) {
+      return safeStr(str)
+        .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+    function cssSafeId(id) { return safeStr(id).replace(/[^a-zA-Z0-9\-_]/g, "_"); }
+
+    function showInfo(html) { infoBar.innerHTML = html; infoBar.style.display = "block"; }
+    function hideInfo() { infoBar.style.display = "none"; infoBar.innerHTML = ""; }
+
+    /* =======================
+       Detect: mensagens / JS / HTTP (heurística)
+    ======================= */
+    function extractMessages(state) {
+      const msgs = [];
+      const actions = state?.$contentActions || [];
+      for (const a of actions) {
+        const action = a.action;
+        if (!action) continue;
+        const st = action?.settings?.type;
+        if (st === "application/vnd.lime.chatstate+json") continue;
+
+        if (action.type === "SendMessage") {
+          if (st === "text/plain") {
+            const text = safeStr(action?.settings?.content);
+            if (text.trim()) msgs.push(text);
+          } else if (st === "application/vnd.lime.select+json") {
+            const content = action?.settings?.content || {};
+            const text = safeStr(content.text);
+            const opts = Array.isArray(content.options) ? content.options.map(o => o?.text).filter(Boolean) : [];
+            const composed = [text, opts.length ? `Opções: ${opts.join(" | ")}` : ""].filter(Boolean).join("\n");
+            if (composed.trim()) msgs.push(composed);
+          } else {
+            msgs.push(`[SendMessage: ${st || "tipo desconhecido"}]`);
+          }
+        }
+      }
+      return msgs;
+    }
+
+    function hasJS(state) {
+      const actions = state?.$contentActions || [];
+      for (const a of actions) {
+        const action = a.action;
+        if (!action) continue;
+        const t = safeStr(action.type).toLowerCase();
+        const s = JSON.stringify(action).toLowerCase();
+        if (t.includes("script") || t.includes("execute")) return true;
+        if (s.includes("function run") || s.includes("fetchasync") || s.includes("json.parse") || s.includes("crypto.randomuuid")) return true;
+      }
+      return false;
+    }
+
+    function hasHTTP(state) {
+      const actions = state?.$contentActions || [];
+      for (const a of actions) {
+        const action = a.action;
+        if (!action) continue;
+        const t = safeStr(action.type).toLowerCase();
+        const s = JSON.stringify(action).toLowerCase();
+        if (t.includes("http")) return true;
+        if (s.includes("http://") || s.includes("https://")) return true;
+        if (s.includes("msging.net/commands") || (s.includes('"method"') && s.includes('"uri"'))) return true;
+      }
+      return false;
+    }
+
+    function classifyKind(state) {
+      const outs = state?.$conditionOutputs || [];
+      if (outs.length > 1) return "decision";
+      const tags = state?.$tags || [];
+      if (tags.some(t => t?.label === "Redirect")) return "redirect";
+      if (state?.id === "fallback" || state?.id === "error" || (state?.$title || "").toLowerCase().includes("erro")) return "error";
+      return "normal";
+    }
+
+    /* =======================
+       Build graph (nodes + edges)
+    ======================= */
+    function buildGraph(blipJson) {
+      const flow = blipJson?.flow || {};
+      const states = Object.values(flow).filter(s => s && s.id);
+
+      const nodes = new Map(states.map(s => [s.id, s]));
+      const out = new Map();
+      const inc = new Map();
+
+      for (const [id] of nodes) { out.set(id, []); inc.set(id, 0); }
+
+      function addEdge(a, b) {
+        if (!nodes.has(a) || !nodes.has(b)) return;
+        out.get(a).push(b);
+        inc.set(b, (inc.get(b) || 0) + 1);
+      }
+
+      for (const s of states) {
+        const outs = s.$conditionOutputs || [];
+        for (const o of outs) {
+          if (o?.stateId) addEdge(s.id, o.stateId);
+        }
+        const def = s.$defaultOutput?.stateId;
+        if (def) addEdge(s.id, def);
+      }
+
+      // edge list (dedup)
+      const edges = [];
+      const seen = new Set();
+      for (const [a, bs] of out.entries()) {
+        for (const b of bs) {
+          const key = `${a}→${b}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          edges.push({ from: a, to: b, key });
+        }
+      }
+
+      return { nodes, out, inc, edges };
+    }
+
+    /* =======================
+       Forest (sem raiz virtual)
+    ======================= */
+    function computeForest(graph) {
+      const { nodes, out, inc } = graph;
+
+      const outDeg = new Map();
+      for (const [id, bs] of out.entries()) outDeg.set(id, bs.length);
+
+      const isolated = [];
+      for (const id of nodes.keys()) {
+        const inD = inc.get(id) || 0;
+        const oD = outDeg.get(id) || 0;
+        if (inD === 0 && oD === 0) isolated.push(id);
+      }
+
+      const explicitRoots = [];
+      for (const [id, s] of nodes.entries()) if (s.root) explicitRoots.push(id);
+
+      const zeroIn = [];
+      for (const id of nodes.keys()) {
+        if (isolated.includes(id)) continue;
+        if ((inc.get(id) || 0) === 0) zeroIn.push(id);
+      }
+
+      let roots = (explicitRoots.length ? explicitRoots : zeroIn).slice();
+      roots = [...new Set(roots)].sort();
+
+      const parent = new Map();
+      const depth = new Map();
+      const children = new Map();
+      for (const id of nodes.keys()) children.set(id, []);
+
+      const visited = new Set();
+
+      function bfsFrom(root) {
+        if (visited.has(root)) return;
+        parent.set(root, null);
+        depth.set(root, 0);
+        visited.add(root);
+
+        const q = [root];
+        while (q.length) {
+          const a = q.shift();
+          const da = depth.get(a) ?? 0;
+          const bs = (out.get(a) || []).slice().sort();
+          for (const b of bs) {
+            if (!visited.has(b)) {
+              visited.add(b);
+              parent.set(b, a);
+              depth.set(b, da + 1);
+              children.get(a).push(b);
+              q.push(b);
+            }
+          }
+        }
+      }
+
+      for (const r of roots) bfsFrom(r);
+
+      // componentes sem indegree0 (ciclos) viram roots "reais" também
+      for (const id of nodes.keys()) {
+        if (isolated.includes(id)) continue;
+        if (!visited.has(id)) {
+          roots.push(id);
+          bfsFrom(id);
+        }
+      }
+
+      roots = [...new Set(roots)].sort();
+      return { roots, isolated, parent, depth, children };
+    }
+
+    /* =======================
+       Positions (forest packing)
+    ======================= */
+    function computePositions(graph, forest) {
+      const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--cardW")) || 360;
+      const pad = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--pad")) || 70;
+      const gapY = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--levelGapY")) || 260;
+      const gapX = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nodeGapX")) || 160;
+      const treeGapX = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--treeGapX")) || 300;
+      const islandGapX = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--islandGapX")) || 300;
+
+      const { nodes } = graph;
+      const { roots, isolated, children, depth } = forest;
+
+      const pos = new Map();
+      let cursorLeaf = 0;
+
+      function dfsLeafOrder(id, leafIndex) {
+        const kids = (children.get(id) || []).slice().sort();
+        if (kids.length === 0) {
+          leafIndex.set(id, cursorLeaf++);
+          return { min: leafIndex.get(id), max: leafIndex.get(id) };
+        }
+        let min = Infinity, max = -Infinity;
+        for (const c of kids) {
+          const r = dfsLeafOrder(c, leafIndex);
+          min = Math.min(min, r.min);
+          max = Math.max(max, r.max);
+        }
+        leafIndex.set(id, (min + max) / 2);
+        return { min, max };
+      }
+
+      let xOffset = 0;
+      let maxDepth = 0;
+
+      for (const r of roots) {
+        const leafIndex = new Map();
+        cursorLeaf = 0;
+        dfsLeafOrder(r, leafIndex);
+
+        let minLeaf = Infinity, maxLeaf = -Infinity;
+        for (const [id, li] of leafIndex.entries()) {
+          minLeaf = Math.min(minLeaf, li);
+          maxLeaf = Math.max(maxLeaf, li);
+          maxDepth = Math.max(maxDepth, depth.get(id) || 0);
+        }
+        if (minLeaf === Infinity) { minLeaf = 0; maxLeaf = 0; }
+
+        for (const [id, li] of leafIndex.entries()) {
+          const d = depth.get(id) || 0;
+          const x = pad + xOffset + (li - minLeaf) * (cardW + gapX);
+          const y = pad + d * gapY;
+          pos.set(id, { x, y });
+        }
+
+        const treeWidth = (maxLeaf - minLeaf + 1) * (cardW + gapX) - gapX;
+        xOffset += treeWidth + treeGapX;
+      }
+
+      const islandY = pad + (maxDepth + 2) * gapY;
+      let ix = pad;
+      for (const id of isolated.sort()) {
+        pos.set(id, { x: ix, y: islandY });
+        ix += cardW + islandGapX;
+      }
+
+      // fallback
+      let fallbackX = pad;
+      for (const id of nodes.keys()) {
+        if (!pos.has(id)) {
+          pos.set(id, { x: fallbackX, y: islandY + gapY });
+          fallbackX += cardW + islandGapX;
+        }
+      }
+
+      return pos;
+    }
+
+    /* =======================
+       Render (nodes)
+    ======================= */
+    let CURRENT = null;          // { graph, forest, pos }
+    let selectedNodeId = null;
+    let selectedEdgeKey = null;
+    let edgeEls = new Map();     // key -> pathEl
+
+    // ===== Drag state =====
+    let isDraggingNode = false;
+    let dragNodeId = null;
+    let dragStart = { x: 0, y: 0, left: 0, top: 0 };
+    let nodeMoved = false;
+    let rafEdges = 0;
+
+    function clearPathsKeepDefs() {
+      const defs = svg.querySelector("defs");
+      svg.innerHTML = "";
+      svg.appendChild(defs);
+      edgeEls.clear();
+    }
+
+    function contentBBox() {
+      const nodesEls = [...document.querySelectorAll(".node")];
+      if (!nodesEls.length) return { x: 0, y: 0, w: 1200, h: 800 };
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const n of nodesEls) {
+        const x = n.offsetLeft, y = n.offsetTop, w = n.offsetWidth, h = n.offsetHeight;
+        minX = Math.min(minX, x); minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
+      }
+      const pad = 220;
+      minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+
+    function sizeBoardToContent() {
+      const bb = contentBBox();
+      board.style.width = bb.w + "px";
+      board.style.height = bb.h + "px";
+      svg.setAttribute("width", bb.w);
+      svg.setAttribute("height", bb.h);
+      svg.style.width = bb.w + "px";
+      svg.style.height = bb.h + "px";
+      return bb;
+    }
+
+    function nodeBoxById(id) {
+      const el = document.getElementById(`node_${cssSafeId(id)}`);
+      if (!el) return null;
+      const left = el.offsetLeft, top = el.offsetTop;
+      const w = el.offsetWidth, h = el.offsetHeight;
+      return { left, top, width: w, height: h, right: left + w, bottom: top + h, cx: left + w / 2, cy: top + h / 2 };
+    }
+
+    function portX(box, idx, total) {
+      const t = (idx + 1) / (total + 1);
+      return box.left + t * box.width;
+    }
+    function portY(box, idx, total) {
+      const t = (idx + 1) / (total + 1);
+      return box.top + t * box.height;
+    }
+
+    function render(blipJson) {
+      const graph = buildGraph(blipJson);
+      const forest = computeForest(graph);
+      const pos = computePositions(graph, forest);
+
+      canvas.innerHTML = "";
+      clearPathsKeepDefs();
+      selectedNodeId = null;
+      selectedEdgeKey = null;
+      hideInfo();
+
+      for (const [id, state] of graph.nodes.entries()) {
+        const p = pos.get(id);
+        if (!p) continue;
+
+        const el = document.createElement("div");
+        el.className = "node";
+        el.dataset.sid = id;
+        el.id = `node_${cssSafeId(id)}`;
+        el.dataset.kind = classifyKind(state);
+
+        el.style.left = `${p.x}px`;
+        el.style.top = `${p.y}px`;
+
+        const title = safeStr(state.$title || id);
+        const msgs = extractMessages(state);
+
+        const badges = [];
+        if (state.root) badges.push(`<span class="badge root">root</span>`);
+        if (hasJS(state)) badges.push(`<span class="badge js">💻 JS</span>`);
+        if (hasHTTP(state)) badges.push(`<span class="badge http">🌐 HTTP</span>`);
+
+        const outsCount = (state.$conditionOutputs || []).length + (state.$defaultOutput?.stateId ? 1 : 0);
+
+        const msgsHtml = msgs.length
+          ? `<div class="msgs">${msgs.map(m => `<div class="msg">${escapeHtml(m)}</div>`).join("")}</div>`
+          : "";
+
+        el.innerHTML = `
+      <div class="title">${escapeHtml(title)}</div>
+      <div class="badges">${badges.join("")}</div>
+      <div class="meta">id: ${escapeHtml(id)} · saídas: ${outsCount}</div>
+      ${msgsHtml}
+    `;
+
+        // Clique simples: seleciona/deseleciona (mas não quando arrastou)
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (nodeMoved) return; // se arrastou, ignora clique
+          toggleNodeSelection(id);
+        });
+
+        // Drag do nó
+        el.addEventListener("mousedown", (e) => {
+          // botão esquerdo
+          if (e.button !== 0) return;
+          e.stopPropagation();
+
+          isDraggingNode = true;
+          dragNodeId = id;
+          nodeMoved = false;
+
+          const rect = viewport.getBoundingClientRect();
+          const px = e.clientX - rect.left;
+          const py = e.clientY - rect.top;
+
+          // converte para coordenada do "mundo" (board) considerando zoom/pan
+          const worldX = (px - view.x) / view.s;
+          const worldY = (py - view.y) / view.s;
+
+          dragStart = {
+            x: worldX,
+            y: worldY,
+            left: el.offsetLeft,
+            top: el.offsetTop
+          };
+
+          // evita seleção de texto durante drag
+          document.body.style.userSelect = "none";
+        });
+
+        canvas.appendChild(el);
+      }
+
+      CURRENT = { graph, forest, pos };
+
+      requestAnimationFrame(() => {
+        applyDynamicLevelSpacing(); // evita overlap vertical por altura real
+
+        sizeBoardToContent();
+        fitToViewport();
+        drawAllEdges();
+        setZoomLabel();
+      });
+    }
+
+    /* =======================
+       Spacing dinâmico por nível (altura real)
+    ======================= */
+    function applyDynamicLevelSpacing() {
+      if (!CURRENT) return;
+      const { forest, pos } = CURRENT;
+
+      // altura máxima por depth
+      const maxH = new Map(); // depth -> height
+      for (const [id, d] of forest.depth.entries()) {
+        const el = document.getElementById(`node_${cssSafeId(id)}`);
+        if (!el) continue;
+        maxH.set(d, Math.max(maxH.get(d) || 0, el.offsetHeight));
+      }
+
+      // isolados no "último nível"
+      let maxDepth = 0;
+      for (const d of maxH.keys()) maxDepth = Math.max(maxDepth, d);
+      const isolatedDepth = maxDepth + 2;
+      for (const id of forest.isolated || []) {
+        const el = document.getElementById(`node_${cssSafeId(id)}`);
+        if (!el) continue;
+        maxH.set(isolatedDepth, Math.max(maxH.get(isolatedDepth) || 0, el.offsetHeight));
+      }
+
+      const pad = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--pad")) || 70;
+      const baseGapY = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--levelGapY")) || 260;
+
+      const depths = [...maxH.keys()].sort((a, b) => a - b);
+      const yByDepth = new Map();
+      let accY = pad;
+
+      for (const d of depths) {
+        yByDepth.set(d, accY);
+        accY += (maxH.get(d) || 180) + baseGapY;
+      }
+
+      for (const [id] of pos.entries()) {
+        const el = document.getElementById(`node_${cssSafeId(id)}`);
+        if (!el) continue;
+
+        let d = forest.depth.get(id);
+        if (d === undefined) {
+          d = (forest.isolated || []).includes(id) ? isolatedDepth : isolatedDepth + 1;
+        }
+        const y = yByDepth.get(d);
+        if (y !== undefined) el.style.top = `${y}px`;
+      }
+    }
+
+    /* =======================
+       Draw ALL edges (todas ligações)
+    ======================= */
+    function buildOutgoingIndex(graph) {
+      const outIndex = new Map();
+      for (const [a, bs] of graph.out.entries()) {
+        outIndex.set(a, bs.slice().sort());
+      }
+      return outIndex;
+    }
+    function buildIncomingIndex(graph) {
+      const inIndex = new Map();
+      for (const e of graph.edges) {
+        if (!inIndex.has(e.to)) inIndex.set(e.to, []);
+        inIndex.get(e.to).push(e.from);
+      }
+      for (const [b, arr] of inIndex.entries()) arr.sort();
+      return inIndex;
+    }
+
+    function drawAllEdges() {
+      if (!CURRENT) return;
+      clearPathsKeepDefs();
+
+      const { graph, forest } = CURRENT;
+      const outIdx = buildOutgoingIndex(graph);
+      const inIdx = buildIncomingIndex(graph);
+
+      const loopPad = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--loopPad")) || 26;
+
+      for (const e of graph.edges) {
+        const aId = e.from, bId = e.to;
+        const a = nodeBoxById(aId);
+        const b = nodeBoxById(bId);
+        if (!a || !b) continue;
+
+        const outs = outIdx.get(aId) || [bId];
+        const ins = inIdx.get(bId) || [aId];
+
+        const outTotal = Math.max(1, outs.length);
+        const inTotal = Math.max(1, ins.length);
+
+        const outPos = Math.max(0, outs.indexOf(bId));
+        const inPos = Math.max(0, ins.indexOf(aId));
+
+        let d = null;
+        let alt = false;
+
+        if (aId === bId) {
+          // loop A->A: sai direita (meio), sobe, volta ao topo
+          const x1 = a.right;
+          const y1 = a.cy;
+          const x2 = a.cx;
+          const y2 = a.top;
+
+          const xOut = a.right + loopPad + 30;
+          const yUp = a.top - loopPad - 30;
+
+          d = `M ${x1} ${y1} H ${xOut} V ${yUp} H ${x2} V ${y2}`;
+          alt = true;
+        } else {
+          const da = forest.depth.get(aId);
+          const db = forest.depth.get(bId);
+
+          const aHasDepth = (da !== undefined);
+          const bHasDepth = (db !== undefined);
+
+          if (aHasDepth && bHasDepth && db > da) {
+            // descendo: bottom -> top
+            const x1 = portX(a, outPos, outTotal);
+            const y1 = a.bottom;
+
+            const x2 = portX(b, inPos, inTotal);
+            const y2 = b.top;
+
+            const midY = (y1 + y2) / 2;
+            d = `M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`;
+          }
+          else if (aHasDepth && bHasDepth && db <= da) {
+            // voltando/subindo: corredor lateral
+            const x1 = a.right;
+            const y1 = portY(a, outPos, outTotal);
+
+            const x2 = portX(b, inPos, inTotal);
+            const y2 = b.top;
+
+            const lane = 40 + (outPos - (outTotal - 1) / 2) * 12;
+            const xLane = Math.max(a.right, b.right) + loopPad + lane;
+            const yLane = b.top - loopPad - 20;
+
+            d = `M ${x1} ${y1} H ${xLane} V ${yLane} H ${x2} V ${y2}`;
+            alt = true;
+          }
+          else {
+            // lateral: right -> left
+            const x1 = a.right;
+            const y1 = portY(a, outPos, outTotal);
+
+            const x2 = b.left;
+            const y2 = portY(b, inPos, inTotal);
+
+            const spread = 18;
+            const midXBase = (x1 + x2) / 2;
+            const midX = midXBase + (outPos - (outTotal - 1) / 2) * spread;
+
+            d = `M ${x1} ${y1} H ${midX} V ${y2} H ${x2}`;
+            alt = true;
+          }
+        }
+
+        if (!d) continue;
+
+        const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        p.setAttribute("d", d.replace(/\s+/g, " ").trim());
+        p.classList.add("edge");
+        if (alt) p.classList.add("alt");
+        p.dataset.key = e.key;
+        p.dataset.from = aId;
+        p.dataset.to = bId;
+
+        p.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          // seleção de linha: clique 1x seleciona, clique de novo desseleciona
+          toggleEdgeSelection(e.key);
+        });
+
+        svg.appendChild(p);
+        edgeEls.set(e.key, p);
+      }
+
+      updateHighlights();
+    }
+
+    /* Redesenho de arestas com throttling (para drag suave) */
+    function scheduleEdgesRedraw() {
+      if (rafEdges) return;
+      rafEdges = requestAnimationFrame(() => {
+        rafEdges = 0;
+        drawAllEdges();
+      });
+    }
+
+    /* =======================
+       Selection behavior:
+       - Só muda clicando no nó/linha
+       - NÃO desseleciona clicando no fundo
+    ======================= */
+    function toggleNodeSelection(id) {
+      selectedEdgeKey = null;
+      if (selectedNodeId === id) {
+        selectedNodeId = null;
+        hideInfo();
+      } else {
+        selectedNodeId = id;
+        showInfoForNode(id);
+      }
+      updateHighlights();
+    }
+
+    function toggleEdgeSelection(key) {
+      selectedNodeId = null;
+      if (selectedEdgeKey === key) {
+        selectedEdgeKey = null;
+        hideInfo();
+      } else {
+        selectedEdgeKey = key;
+        const [from, to] = key.split("→");
+        showInfoForEdge(from, to);
+      }
+      updateHighlights();
+    }
+
+    function showInfoForEdge(from, to) {
+      showInfo(`
+    <div><b>Ligação selecionada</b></div>
+    <div class="muted">${escapeHtml(from)} → ${escapeHtml(to)}</div>
+    <div class="muted">Clique novamente na linha para desselecionar.</div>
+  `);
+    }
+
+    function showInfoForNode(id) {
+      if (!CURRENT) return;
+      const state = CURRENT.graph.nodes.get(id);
+      if (!state) {
+        showInfo(`<div><b>Nó selecionado</b></div><div class="muted">${escapeHtml(id)}</div>`);
+        return;
+      }
+      const js = hasJS(state) ? "Sim" : "Não";
+      const http = hasHTTP(state) ? "Sim" : "Não";
+      showInfo(`
+    <div><b>Nó selecionado</b></div>
+    <div class="muted">id: ${escapeHtml(id)}</div>
+    <div class="muted">JS: <b>${js}</b> · HTTP: <b>${http}</b></div>
+    <div class="muted">Clique novamente no bloco para desselecionar.</div>
+  `);
+    }
+
+    function updateHighlights() {
+      const nodeEls = [...document.querySelectorAll(".node")];
+      const edgeAll = [...document.querySelectorAll("path.edge")];
+
+      nodeEls.forEach(n => n.classList.remove("selected"));
+      edgeAll.forEach(e => e.classList.remove("edge-selected"));
+
+      if (selectedNodeId) {
+        const el = document.getElementById(`node_${cssSafeId(selectedNodeId)}`);
+        if (el) el.classList.add("selected");
+
+        edgeAll.forEach(p => {
+          if (p.dataset.from === selectedNodeId || p.dataset.to === selectedNodeId) {
+            p.classList.add("edge-selected");
+          }
+        });
+        return;
+      }
+
+      if (selectedEdgeKey) {
+        const p = edgeEls.get(selectedEdgeKey);
+        if (p) p.classList.add("edge-selected");
+
+        const [from, to] = selectedEdgeKey.split("→");
+        const aEl = document.getElementById(`node_${cssSafeId(from)}`);
+        const bEl = document.getElementById(`node_${cssSafeId(to)}`);
+        if (aEl) aEl.classList.add("selected");
+        if (bEl) bEl.classList.add("selected");
+      }
+    }
+
+    /* =======================
+       Search
+    ======================= */
+    function applySearch(q) {
+      q = (q || "").trim().toLowerCase();
+      const nodes = [...document.querySelectorAll(".node")];
+      if (!q) {
+        nodes.forEach(n => n.classList.remove("dim", "highlight"));
+        return;
+      }
+      nodes.forEach(n => {
+        const hit = n.innerText.toLowerCase().includes(q);
+        n.classList.toggle("dim", !hit);
+        n.classList.toggle("highlight", hit);
+      });
+    }
+    document.getElementById("search").addEventListener("input", e => applySearch(e.target.value));
+
+    /* =======================
+       Zoom/Pan (arrastar fundo)
+    ======================= */
+    let view = { x: 0, y: 0, s: 1 };
+    let isPanning = false;
+    let panStart = { x: 0, y: 0, vx: 0, vy: 0 };
+    let didPan = false;
+
+    function applyView() {
+      board.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.s})`;
+      setZoomLabel();
+    }
+    function setZoomLabel() { zoomLabel.textContent = `${Math.round(view.s * 100)}%`; }
+
+    function fitToViewport() {
+      const bb = contentBBox();
+      const vw = viewport.clientWidth;
+      const vh = viewport.clientHeight;
+
+      const scale = Math.min(vw / bb.w, vh / bb.h);
+      const s = Math.max(0.10, Math.min(scale, 1.0));
+
+      const x = (vw - bb.w * s) / 2 - bb.x * s;
+      const y = (vh - bb.h * s) / 2 - bb.y * s;
+
+      view = { x, y, s };
+      applyView();
+    }
+
+    function zoomAt(clientX, clientY, factor) {
+      const rect = viewport.getBoundingClientRect();
+      const px = clientX - rect.left;
+      const py = clientY - rect.top;
+
+      const oldS = view.s;
+      const newS = Math.max(0.08, Math.min(2.5, oldS * factor));
+
+      const wx = (px - view.x) / oldS;
+      const wy = (py - view.y) / oldS;
+
+      view.s = newS;
+      view.x = px - wx * newS;
+      view.y = py - wy * newS;
+
+      applyView();
+    }
+
+    viewport.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+
+      // se clicou num nó, drag do nó é tratado no handler do nó
+      if (e.target.closest(".node")) return;
+
+      // se clicou em linha, deixa o clique selecionar a linha
+      if (e.target.closest("path.edge")) return;
+
+      didPan = false;
+      isPanning = true;
+      viewport.classList.add("panning");
+      panStart = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      // DRAG DO NÓ
+      if (isDraggingNode && dragNodeId) {
+        const el = document.getElementById(`node_${cssSafeId(dragNodeId)}`);
+        if (!el) return;
+
+        const rect = viewport.getBoundingClientRect();
+        const px = e.clientX - rect.left;
+        const py = e.clientY - rect.top;
+        const worldX = (px - view.x) / view.s;
+        const worldY = (py - view.y) / view.s;
+
+        const dx = worldX - dragStart.x;
+        const dy = worldY - dragStart.y;
+
+        if (Math.abs(dx) + Math.abs(dy) > 2) nodeMoved = true;
+
+        el.style.left = `${dragStart.left + dx}px`;
+        el.style.top = `${dragStart.top + dy}px`;
+
+        // atualiza arestas “ao vivo”
+        scheduleEdgesRedraw();
+        return;
+      }
+
+      // PAN DO FUNDO
+      if (!isPanning) return;
+      didPan = true;
+      view.x = panStart.vx + (e.clientX - panStart.x);
+      view.y = panStart.vy + (e.clientY - panStart.y);
+      applyView();
+    });
+
+    window.addEventListener("mouseup", () => {
+      // fim drag do nó
+      if (isDraggingNode) {
+        isDraggingNode = false;
+        dragNodeId = null;
+        document.body.style.userSelect = "";
+        // ao soltar, garante edge redraw + board size
+        sizeBoardToContent();
+        scheduleEdgesRedraw();
+        // mantém seleção como está (não mexe)
+        setTimeout(() => { nodeMoved = false; }, 0);
+      }
+
+      // fim pan
+      isPanning = false;
+      viewport.classList.remove("panning");
+    });
+
+    viewport.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
+      zoomAt(e.clientX, e.clientY, factor);
+    }, { passive: false });
+
+    document.getElementById("zoomIn").addEventListener("click", () => {
+      const r = viewport.getBoundingClientRect();
+      zoomAt(r.left + viewport.clientWidth / 2, r.top + viewport.clientHeight / 2, 1.12);
+    });
+    document.getElementById("zoomOut").addEventListener("click", () => {
+      const r = viewport.getBoundingClientRect();
+      zoomAt(r.left + viewport.clientWidth / 2, r.top + viewport.clientHeight / 2, 1 / 1.12);
+    });
+    document.getElementById("resetView").addEventListener("click", () => {
+      view = { x: 0, y: 0, s: 1 };
+      applyView();
+    });
+    document.getElementById("fitBtn").addEventListener("click", () => {
+      sizeBoardToContent();
+      fitToViewport();
+      drawAllEdges();
+    });
+
+    /* IMPORTANTE:
+       - Não desseleciona clicando no fundo.
+       - Só ignora clique pós-pan.
+    */
+    viewport.addEventListener("click", (e) => {
+      if (didPan) return;
+      // não faz nada: seleção só muda clicando em nó/linha
+    });
+
+    window.addEventListener("resize", () => {
+      sizeBoardToContent();
+      drawAllEdges();
+    });
+
+    /* =======================
+       Load JSON
+    ======================= */
+    async function loadFromUrl() {
+      const res = await fetch("fluxo.json", { cache: "no-store" });
+      const json = await res.json();
+      render(json);
+    }
+    async function loadFromFile(file) {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      render(json);
+    }
+
+    document.getElementById("loadBtn").addEventListener("click", () => {
+      loadFromUrl().catch(err => {
+        console.error(err);
+        alert("Falha ao carregar fluxo.json. Use Live Server / http.server e confirme o nome do arquivo.");
+      });
+    });
+
+    document.getElementById("file").addEventListener("change", (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      loadFromFile(f).catch(err => {
+        console.error(err);
+        alert("JSON inválido ou não foi possível ler o arquivo.");
+      });
+    });
+  </script>
+</body>
+
+</html>
