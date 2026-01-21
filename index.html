@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Flow Visualizer [BETA] 0.0.1</title>
+  <title>Flow Visualizer [BETA] 0.0.2</title>
 
   <style>
     :root {
@@ -26,6 +26,29 @@
       --treeGapX: 300px;
       --islandGapX: 300px;
       --loopPad: 26px;
+    }
+
+    body.export-mode {
+      --cardW: 520px; // cards mais largos
+      --levelGapY: 320px; // mais espaço vertical
+      --nodeGapX: 220px; // mais espaço horizontal
+    }
+
+    body.export-mode .node {
+      padding: 18px 18px 14px;
+    }
+
+    body.export-mode .title {
+      font-size: 18px;
+    }
+
+    body.export-mode .meta {
+      font-size: 14px;
+    }
+
+    body.export-mode .msg {
+      font-size: 15px;
+      line-height: 1.25;
     }
 
     body {
@@ -66,7 +89,10 @@
     header .hint {
       color: #64748b;
       font-size: 13px;
+
     }
+
+
 
     header .right {
       display: flex;
@@ -324,56 +350,73 @@
 <body>
   <header>
     <div class="left">
-      <h1>Flow Visualizer [BETA] 0.0.1</h1>
-      <span class="hint">
-        Aqui você pode :
-        <br>
-        <br>
-        >>> Clicar no bloco para seleciona-lo e ver as suas ligações
-        <br>
-        <br>
-        >>> Arrastar o bloco
-        <br>
-        <br>
-        >>> Rolar a bolinha do mouse para dar ou tirar zoom
-        <br>
-        <br>
-        >>> Resetar a visualização no botão "Reset"
-        <br>
-        <br>
-        >>> Pesquisar blocos
-      </span>
+
+      <div class="hint">
+
+        <h1>Flow Visualizer [BETA] 0.0.2</h1>
+        <p><strong>Como usar:</strong></p>
+        <ul>
+          <li>Clique no bloco para selecioná-lo e ver as ligações</li>
+          <li>Arraste o bloco</li>
+          <li>Use a bolinha do mouse para dar ou tirar zoom</li>
+          <li>Use o botão "Reset" para voltar à visualização inicial</li>
+          <li>Pesquise blocos pelo título, id ou mensagem</li>
+
+        </ul>
+
+        <a href="https://github.com/CKeops/flow-visualizer"> Acesse o Flow Visualizer no Github</a>
+
+      </div>
+
+
+
+
+
+
+
     </div>
 
     <div class="right">
+      
       <label class="upload">Upload JSON do fluxo <input id="file" type="file" accept=".json,application/json"></label>
+      <input id="search" type="search" placeholder="Buscar por título / id / mensagem…">
       <button id="loadBtn" style="display: none;">Carregar fluxo.json</button>
       <button id="fitBtn">Ver fluxo inteiro</button>
       <button id="zoomIn">+</button>
+      <span class="kbd" id="zoomLabel">100%</span> 
       <button id="zoomOut">-</button>
       <button id="resetView">Resetar visualização</button>
-      <input id="search" type="search" placeholder="Buscar por título / id / mensagem…">
-      <span class="kbd" id="zoomLabel">100%</span>
+      <button id="downloadPdf">Baixar Imagem do Fluxo</button>
+         
     </div>
+    
   </header>
-
-  <div class="viewport" id="viewport">
-    <div id="board">
-      <svg id="wires">
-        <defs>
-          <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
-            <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"></path>
-          </marker>
-          <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
-            <path d="M0,0 L10,5 L0,10 Z" fill="#0ea5e9"></path>
-          </marker>
-        </defs>
-      </svg>
-      <div id="canvas"></div>
+  
+  <div class="minha-area">
+    <div class="viewport" id="viewport">
+      <div id="board">
+        <svg id="wires">
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+              <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"></path>
+            </marker>
+            <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+              <path d="M0,0 L10,5 L0,10 Z" fill="#0ea5e9"></path>
+            </marker>
+          </defs>
+        </svg>
+        <div id="canvas"></div>
+      </div>
     </div>
+
   </div>
 
+
+
   <div id="infoBar"></div>
+
+
+
 
   <script>
     /* =======================
@@ -1295,6 +1338,113 @@
       });
     });
   </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+
+  <script>
+    document.getElementById("downloadPdf").addEventListener("click", async () => {
+      const viewportEl = document.getElementById("viewport");
+      const boardEl = document.getElementById("board");
+      if (!viewportEl || !boardEl) return alert("Não achei #viewport ou #board");
+
+      const bb = contentBBox();
+      sizeBoardToContent();
+
+      const oldBoardTransform = boardEl.style.transform;
+
+      const oldVpOverflow = viewportEl.style.overflow;
+      const oldVpPosition = viewportEl.style.position;
+      const oldVpInset = viewportEl.style.inset;
+      const oldVpWidth = viewportEl.style.width;
+      const oldVpHeight = viewportEl.style.height;
+
+      const oldView = { ...view };
+
+      // ativa modo export (texto maior)
+      document.body.classList.add("export-mode");
+
+      try {
+        // normaliza pan/zoom
+        view = { x: 0, y: 0, s: 1 };
+        applyView();
+
+        // evita recorte e faz viewport comportar o board inteiro
+        viewportEl.style.overflow = "visible";
+        viewportEl.style.position = "relative";
+        viewportEl.style.inset = "auto";
+        viewportEl.style.width = boardEl.style.width;
+        viewportEl.style.height = boardEl.style.height;
+
+        // move conteúdo para começar em (0,0)
+        boardEl.style.transform = `translate(${-bb.x}px, ${-bb.y}px) scale(1)`;
+        boardEl.style.transformOrigin = "0 0";
+
+        // deixa o layout assentar com o export-mode
+        await new Promise((r) => requestAnimationFrame(r));
+        await new Promise((r) => requestAnimationFrame(r));
+
+        // ====== ESCALA AUTOMÁTICA (mais pixels, mas sem explodir) ======
+        const rect = viewportEl.getBoundingClientRect();
+        const w = Math.max(1, Math.round(rect.width));
+        const h = Math.max(1, Math.round(rect.height));
+
+        // aumente com cuidado se quiser mais nitidez
+        const MAX_SIDE = 7000;
+        const MAX_AREA = 300_000_000; // ~32 MP
+
+        const scaleBySide = Math.min(1, MAX_SIDE / Math.max(w, h));
+        const scaleByArea = Math.min(1, Math.sqrt(MAX_AREA / (w * h)));
+        const captureScale = Math.max(0.12, Math.min(scaleBySide, scaleByArea));
+
+        const canvas = await html2canvas(viewportEl, {
+          scale: captureScale,
+          backgroundColor: "#ffffff",
+          useCORS: true
+        });
+
+        // ====== DOWNLOAD VIA BLOB (evita 0 bytes) ======
+        const blob = await new Promise((resolve) => {
+          canvas.toBlob((b) => resolve(b), "image/png", 1.0);
+        });
+
+        if (!blob || blob.size === 0) {
+          alert("Não consegui gerar a imagem (ainda grande demais). Tente reduzir MAX_SIDE/MAX_AREA.");
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "fluxo.png";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error(err);
+        alert("Falha ao gerar a imagem. Veja o console (F12).");
+      } finally {
+        // desativa modo export
+        document.body.classList.remove("export-mode");
+
+        // restaura tudo
+        viewportEl.style.overflow = oldVpOverflow;
+        viewportEl.style.position = oldVpPosition;
+        viewportEl.style.inset = oldVpInset;
+        viewportEl.style.width = oldVpWidth;
+        viewportEl.style.height = oldVpHeight;
+
+        boardEl.style.transform = oldBoardTransform;
+
+        view = oldView;
+        applyView();
+      }
+    });
+  </script>
+
+
 </body>
 
 </html>
