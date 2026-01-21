@@ -4,7 +4,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Flow Visualizer [BETA] 0.0.3</title>
+  <link rel="icon" href="media\fav.gif" type="image/gif">
+
+  <title>Flow Visualizer [BETA] 0.0.4</title>
 
   <style>
     :root {
@@ -353,7 +355,7 @@
 
       <div class="hint">
 
-        <h1>Flow Visualizer [BETA] 0.0.3</h1>
+        <h1>Flow Visualizer [BETA] 0.0.4</h1>
         <p><strong>Como usar:</strong></p>
         <ul>
           <li>Clique no bloco para selecioná-lo e ver as ligações</li>
@@ -361,10 +363,13 @@
           <li>Use a bolinha do mouse para dar ou tirar zoom</li>
           <li>Use o botão "Reset" para voltar à visualização inicial</li>
           <li>Pesquise blocos pelo título, id ou mensagem</li>
+          <li><a
+              href="https://help.blip.ai/hc/pt-br/articles/4474433224087-Como-importar-o-fluxo-de-um-bot-no-Builder#:~:text=o%20processo%20abaixo%3A-,Exportando%20o%20fluxo,-No%20portal%2C%20acesse">Exportando
+              o fluxo no Blip</a></li>
 
         </ul>
 
-        <a href="https://github.com/CKeops/flow-visualizer"> Acesse o Flow Visualizer no Github</a>
+        <a href="https://github.com/CKeops/flow-visualizer" target="_blank"> Acesse o Flow Visualizer no Github</a>
 
       </div>
 
@@ -388,28 +393,28 @@
       <button id="resetView">Resetar visualização</button>
       <button id="downloadPdf">Baixar Imagem do Fluxo</button>
 
+
     </div>
 
   </header>
 
-  <div class="minha-area">
-    <div class="viewport" id="viewport">
-      <div id="board">
-        <svg id="wires">
-          <defs>
-            <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
-              <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"></path>
-            </marker>
-            <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
-              <path d="M0,0 L10,5 L0,10 Z" fill="#0ea5e9"></path>
-            </marker>
-          </defs>
-        </svg>
-        <div id="canvas"></div>
-      </div>
-    </div>
 
+  <div class="viewport" id="viewport">
+    <div id="board">
+      <svg id="wires">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"></path>
+          </marker>
+          <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#0ea5e9"></path>
+          </marker>
+        </defs>
+      </svg>
+      <div id="canvas"></div>
+    </div>
   </div>
+
 
 
 
@@ -473,6 +478,7 @@
     function hasJS(state) {
       const actions = state?.$contentActions || [];
       for (const a of actions) {
+        //ver o que actions imprime
         const action = a.action;
         if (!action) continue;
         const t = safeStr(action.type).toLowerCase();
@@ -487,6 +493,7 @@
       const actions = state?.$contentActions || [];
       for (const a of actions) {
         const action = a.action;
+        //ver o que actions imprime
         if (!action) continue;
         const t = safeStr(action.type).toLowerCase();
         const s = JSON.stringify(action).toLowerCase();
@@ -632,6 +639,8 @@
       const gapX = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nodeGapX")) || 160;
       const treeGapX = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--treeGapX")) || 300;
       const islandGapX = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--islandGapX")) || 300;
+
+      
 
       const { nodes } = graph;
       const { roots, isolated, children, depth } = forest;
@@ -781,6 +790,7 @@
         if (!p) continue;
 
         const el = document.createElement("div");
+        const btn = document.createElement("button");
         el.className = "node";
         el.dataset.sid = id;
         el.id = `node_${cssSafeId(id)}`;
@@ -795,7 +805,7 @@
         const badges = [];
         if (state.root) badges.push(`<span class="badge root">root</span>`);
         if (hasJS(state)) badges.push(`<span class="badge js">💻 JS</span>`);
-        if (hasHTTP(state)) badges.push(`<span class="badge http">🌐 HTTP</span>`);
+        if (hasHTTP(state)) badges.push(`<span class="badge http">🌐 HTTP Request</span>`);
 
         const outsCount = (state.$conditionOutputs || []).length + (state.$defaultOutput?.stateId ? 1 : 0);
 
@@ -808,6 +818,7 @@
       <div class="badges">${badges.join("")}</div>
       <div class="meta">id: ${escapeHtml(id)} · saídas: ${outsCount}</div>
       ${msgsHtml}
+
     `;
 
         // Clique simples: seleciona/deseleciona (mas não quando arrastou)
@@ -1100,8 +1111,10 @@
       }
       const js = hasJS(state) ? "Sim" : "Não";
       const http = hasHTTP(state) ? "Sim" : "Não";
+      const title = safeStr(state.$title || id);
       showInfo(`
     <div><b>Nó selecionado</b></div>
+    <div class="muted">Title: ${escapeHtml(title)}</div>
     <div class="muted">id: ${escapeHtml(id)}</div>
     <div class="muted">JS: <b>${js}</b> · HTTP: <b>${http}</b></div>
     <div class="muted">Clique novamente no bloco para desselecionar.</div>
@@ -1325,7 +1338,7 @@
     document.getElementById("loadBtn").addEventListener("click", () => {
       loadFromUrl().catch(err => {
         console.error(err);
-        alert("Falha ao carregar fluxo.json. Use Live Server / http.server e confirme o nome do arquivo.");
+        alert("Falha ao carregar fluxo.json.");
       });
     });
 
@@ -1346,111 +1359,111 @@
   <script>
     const btn = document.getElementById("downloadPdf");
 
-btn.addEventListener("click", async () => {
-  const oldText = btn.innerHTML;
-  btn.innerHTML = "Baixando...";
-  btn.disabled = true;
+    btn.addEventListener("click", async () => {
+      const oldText = btn.innerHTML;
+      btn.innerHTML = "Baixando...";
+      btn.disabled = true;
 
-  const viewportEl = document.getElementById("viewport");
-  const boardEl = document.getElementById("board");
-  if (!viewportEl || !boardEl) {
-    btn.innerHTML = oldText;
-    btn.disabled = false;
-    return alert("Não achei #viewport ou #board");
-  }
+      const viewportEl = document.getElementById("viewport");
+      const boardEl = document.getElementById("board");
+      if (!viewportEl || !boardEl) {
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+        return alert("Não achei #viewport ou #board");
+      }
 
-  const bb = contentBBox();
-  sizeBoardToContent();
+      const bb = contentBBox();
+      sizeBoardToContent();
 
-  const oldBoardTransform = boardEl.style.transform;
+      const oldBoardTransform = boardEl.style.transform;
 
-  const oldVpOverflow = viewportEl.style.overflow;
-  const oldVpPosition = viewportEl.style.position;
-  const oldVpInset = viewportEl.style.inset;
-  const oldVpWidth = viewportEl.style.width;
-  const oldVpHeight = viewportEl.style.height;
+      const oldVpOverflow = viewportEl.style.overflow;
+      const oldVpPosition = viewportEl.style.position;
+      const oldVpInset = viewportEl.style.inset;
+      const oldVpWidth = viewportEl.style.width;
+      const oldVpHeight = viewportEl.style.height;
 
-  const oldView = { ...view };
+      const oldView = { ...view };
 
-  document.body.classList.add("export-mode");
+      document.body.classList.add("export-mode");
 
-  try {
-    // normaliza pan/zoom
-    view = { x: 0, y: 0, s: 1 };
-    applyView();
+      try {
+        // normaliza pan/zoom
+        view = { x: 0, y: 0, s: 1 };
+        applyView();
 
-    // evita recorte
-    viewportEl.style.overflow = "visible";
-    viewportEl.style.position = "relative";
-    viewportEl.style.inset = "auto";
-    viewportEl.style.width = boardEl.style.width;
-    viewportEl.style.height = boardEl.style.height;
+        // evita recorte
+        viewportEl.style.overflow = "visible";
+        viewportEl.style.position = "relative";
+        viewportEl.style.inset = "auto";
+        viewportEl.style.width = boardEl.style.width;
+        viewportEl.style.height = boardEl.style.height;
 
-    // move conteúdo
-    boardEl.style.transform = `translate(${-bb.x}px, ${-bb.y}px) scale(1)`;
-    boardEl.style.transformOrigin = "0 0";
+        // move conteúdo
+        boardEl.style.transform = `translate(${-bb.x}px, ${-bb.y}px) scale(1)`;
+        boardEl.style.transformOrigin = "0 0";
 
-    // espera layout
-    await new Promise((r) => requestAnimationFrame(r));
-    await new Promise((r) => requestAnimationFrame(r));
+        // espera layout
+        await new Promise((r) => requestAnimationFrame(r));
+        await new Promise((r) => requestAnimationFrame(r));
 
-    // ===== escala segura =====
-    const rect = viewportEl.getBoundingClientRect();
-    const w = Math.max(1, Math.round(rect.width));
-    const h = Math.max(1, Math.round(rect.height));
+        // ===== escala segura =====
+        const rect = viewportEl.getBoundingClientRect();
+        const w = Math.max(1, Math.round(rect.width));
+        const h = Math.max(1, Math.round(rect.height));
 
-    const MAX_SIDE = 7700;
-    const MAX_AREA = 30_000_000; // 30 MP (não 300M)
+        const MAX_SIDE = 7700;
+        const MAX_AREA = 30_000_000; // 30 MP (não 300M)
 
-    const scaleBySide = Math.min(1, MAX_SIDE / Math.max(w, h));
-    const scaleByArea = Math.min(1, Math.sqrt(MAX_AREA / (w * h)));
-    const captureScale = Math.max(0.12, Math.min(scaleBySide, scaleByArea));
+        const scaleBySide = Math.min(1, MAX_SIDE / Math.max(w, h));
+        const scaleByArea = Math.min(1, Math.sqrt(MAX_AREA / (w * h)));
+        const captureScale = Math.max(0.12, Math.min(scaleBySide, scaleByArea));
 
-    const canvas = await html2canvas(viewportEl, {
-      scale: captureScale,
-      backgroundColor: "#313336",
-      useCORS: true
+        const canvas = await html2canvas(viewportEl, {
+          scale: captureScale,
+          backgroundColor: "#313336",
+          useCORS: true
+        });
+
+        // ===== download via Blob =====
+        const blob = await new Promise((resolve) => {
+          canvas.toBlob((b) => resolve(b), "image/png", 1.0);
+        });
+
+        if (!blob || blob.size === 0) {
+          alert("Não consegui gerar a imagem (canvas grande demais).");
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "fluxo.png";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error(err);
+        alert("Falha ao gerar a imagem. Veja o console (F12).");
+      } finally {
+        document.body.classList.remove("export-mode");
+
+        viewportEl.style.overflow = oldVpOverflow;
+        viewportEl.style.position = oldVpPosition;
+        viewportEl.style.inset = oldVpInset;
+        viewportEl.style.width = oldVpWidth;
+        viewportEl.style.height = oldVpHeight;
+
+        boardEl.style.transform = oldBoardTransform;
+
+        view = oldView;
+        applyView();
+
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+      }
     });
-
-    // ===== download via Blob =====
-    const blob = await new Promise((resolve) => {
-      canvas.toBlob((b) => resolve(b), "image/png", 1.0);
-    });
-
-    if (!blob || blob.size === 0) {
-      alert("Não consegui gerar a imagem (canvas grande demais).");
-      return;
-    }
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "fluxo.png";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    console.error(err);
-    alert("Falha ao gerar a imagem. Veja o console (F12).");
-  } finally {
-    document.body.classList.remove("export-mode");
-
-    viewportEl.style.overflow = oldVpOverflow;
-    viewportEl.style.position = oldVpPosition;
-    viewportEl.style.inset = oldVpInset;
-    viewportEl.style.width = oldVpWidth;
-    viewportEl.style.height = oldVpHeight;
-
-    boardEl.style.transform = oldBoardTransform;
-
-    view = oldView;
-    applyView();
-
-    btn.innerHTML = oldText;
-    btn.disabled = false;
-  }
-});
 
   </script>
 

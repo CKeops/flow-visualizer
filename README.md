@@ -1,393 +1,279 @@
-# Flow Visualizer [BETA] 0.0.1
+# Flow Visualizer [BETA] 0.0.4 — Explicação do Código
 
-Este projeto é uma página **HTML única** (`index.html`) que renderiza visualmente um **fluxo do Blip (JSON)** como um **grafo**:
-
-- **Nós (cards)** = estados do fluxo
-- **Arestas (linhas com seta)** = transições entre estados
-
-Funcionalidades principais:
-- Upload de JSON do fluxo (arquivo local)
-- Carregar `fluxo.json` via `fetch` (quando disponível)
-- Zoom in / Zoom out (mouse wheel + botões)
-- Pan (arrastar o fundo)
-- Drag (arrastar cards)
-- Busca por texto (título/id/mensagens)
-- Seleção de nó (destaca conexões ligadas)
-- Seleção de aresta (destaca os dois nós conectados)
-- InfoBar inferior com detalhes do item selecionado
+Este projeto renderiza um fluxo exportado do Blip (JSON) como um grafo visual:
+- Cada **state** vira um **card** (“node”).
+- Cada transição vira uma **linha com seta** (“edge”).
+- Possui: pan/zoom, seleção, busca, drag de nós e export para PNG.
 
 ---
 
-## 📁 Estrutura do Projeto
+## Estrutura do arquivo
 
-O projeto é composto por **um único arquivo**:
-
-- `index.html`
-  - HTML (estrutura)
-  - CSS (estilos)
-  - JavaScript (lógica completa)
+### `<!doctype html>` e `<html lang="pt-BR">`
+Define HTML5 e idioma pt-BR.
 
 ---
 
-## 🧱 HTML — Estrutura da Página
+## `<head>`
 
-### `<head>`
-Contém:
-- Charset UTF-8
-- Viewport para responsividade
-- `<title>` da aba
-- `<style>` com todos os estilos do projeto
+### Meta tags
+- `charset="utf-8"`: suporta acentuação.
+- `viewport`: responsividade.
 
-### `<body>`
+### Favicon
+- `media\fav.gif`: ícone da aba.
 
-#### `<header>`
-Barra fixa no topo com:
-- Título e instruções de uso
-- Upload de JSON
-- Botões:
-  - Ver fluxo inteiro
-  - Zoom +
-  - Zoom -
-  - Resetar visualização
-- Campo de busca
-- Indicador de zoom em `%`
-
-#### `.viewport#viewport`
-Área principal que:
-- captura **pan** (arrastar fundo)
-- captura **zoom** (scroll do mouse)
-- contém todo o conteúdo visual do grafo
-
-#### `#board`
-Container que recebe transformações:
-- `translate(x,y)` para pan
-- `scale(s)` para zoom
-
-Ou seja: **zoom/pan são aplicados no board**.
-
-#### `svg#wires`
-SVG onde as **linhas** (edges) são desenhadas.
-- `<defs>` define duas setas:
-  - `#arrow`: seta normal
-  - `#arrowBlue`: seta quando a linha está selecionada
-
-#### `#canvas`
-Container onde os **cards** (`div.node`) são criados via JavaScript.
-
-#### `#infoBar`
-Barra inferior que exibe:
-- informações do nó selecionado
-- informações da ligação selecionada
+### `<title>`
+Nome do documento.
 
 ---
 
-## 🎨 CSS — Estilos (Visão Geral)
+## CSS (estilos)
 
-### Variáveis em `:root`
-Define valores globais usados no layout, por exemplo:
-- cores: `--bg`, `--stroke`, `--blue`
-- dimensões: `--cardW`, `--pad`
-- espaçamentos: `--levelGapY`, `--nodeGapX`, `--treeGapX`, `--islandGapX`
-- outros: `--shadow`, `--radius`
+### `:root` (variáveis CSS)
+Define variáveis globais do tema (cores, tamanhos, gaps, etc).
+Exemplos:
+- `--bg`: cor do fundo.
+- `--cardW`: largura base dos cards.
+- `--levelGapY`: distância vertical entre níveis do grafo.
+- `--nodeGapX`: distância horizontal entre nós do mesmo nível.
 
-### Layout
-- `body`: fundo escuro, sem scroll (`overflow: hidden`)
-- `header`: fixo no topo com blur
-- `.viewport`: área “arrastável”
-- `#board`: transform-origin 0,0 para zoom/pan
+### `body.export-mode`
+Quando ativado (no export), aumenta:
+- largura dos cards
+- fontes
+- espaçamentos
+para melhorar legibilidade da imagem exportada.
 
-### Cards `.node`
-- bloco absoluto com sombra e borda lateral
-- variações via `data-kind`:
-  - `decision` (várias saídas)
-  - `redirect`
-  - `error`
+### Layout principal
+- `header`: barra fixa no topo com controles.
+- `.viewport`: área que recebe pan/zoom.
+- `#board`: “mundo” do grafo (é nele que aplicamos translate/scale).
+- `svg#wires`: onde desenhamos as linhas.
+- `#canvas`: onde ficam os cards (divs dos nós).
 
-### Linhas `path.edge`
-- desenhadas no SVG
-- clicáveis (`pointer-events: stroke`)
-- usam seta via `marker-end`
+### Cards (Nodes)
+`.node` cria cartões com:
+- borda colorida por tipo (normal/decision/redirect/error)
+- sombra
+- texto e mensagens
 
-### Estados visuais
-- `.dim` / `.highlight`: usados na busca
-- `.selected`: nó selecionado
-- `.edge-selected`: linha selecionada (cor azul + espessura maior + seta azul)
+### Arestas (Edges)
+`path.edge` define o estilo das linhas:
+- stroke (cor)
+- arrow marker
+- clique na linha é permitido (`pointer-events: stroke`)
 
----
+### Seleção
+- `.selected`: destaque em um nó
+- `.edge-selected`: destaque em uma linha
 
-## 🧠 JavaScript — Organização Geral
+### Busca
+- `.dim`: desbota nós que não batem
+- `.highlight`: destaca nós que batem
 
-O script está organizado em blocos lógicos:
-
-1. Helpers
-2. Detecção de conteúdo (mensagens / JS / HTTP)
-3. Construção do grafo
-4. Organização em árvores (forest)
-5. Cálculo de posições
-6. Renderização dos nós
-7. Espaçamento dinâmico por nível
-8. Desenho das arestas
-9. Seleção
-10. Busca
-11. Zoom e Pan
-12. Drag de nós
-13. Carregamento do JSON
+### Info bar
+`#infoBar`: painel inferior com info do nó/aresta selecionado.
 
 ---
 
-## 1) Helpers
+## JS — Núcleo do sistema
 
-### Referências do DOM
-Elementos principais da página são obtidos via `getElementById`:
-- viewport, board, canvas, svg
-- zoomLabel
-- infoBar
+### Seletores principais
+Você pega referências DOM:
+- `viewport`, `board`, `canvas`, `svg`, etc.
 
-### `safeStr(x)`
-Converte valores em string:
-- `null` / `undefined` → `""`
-- outros → `.toString()`
+### Helpers
+- `safeStr`: evita `null/undefined`.
+- `escapeHtml`: evita XSS ao inserir texto do JSON no HTML.
+- `cssSafeId`: transforma id em string segura para usar em `id=""`.
 
-### `escapeHtml(str)`
-Escapa caracteres especiais para evitar quebra de layout e injeção de HTML:
-- `& < > " '`
-
-### `cssSafeId(id)`
-Transforma um id qualquer em um id válido para DOM:
-- caracteres inválidos são substituídos por `_`
-
-### `showInfo(html)` / `hideInfo()`
-Controlam a barra inferior de informações:
-- `showInfo`: exibe e injeta HTML
-- `hideInfo`: esconde e limpa
-
----
-
-## 2) Detecção de Conteúdo
-
-### `extractMessages(state)`
-Extrai textos enviados ao usuário:
+### Extração de mensagens do state
+`extractMessages(state)`:
 - percorre `$contentActions`
-- ignora chatstate
-- trata:
-  - `text/plain`
-  - `select+json` (texto + opções)
-- retorna `string[]`
+- procura `SendMessage`
+- suporta `text/plain` e `select`
+- retorna array de mensagens para exibir no card.
 
-### `hasJS(state)`
-Heurística para identificar uso de JavaScript:
-- busca por palavras-chave no `action.type`
-- ou por trechos comuns de script no JSON
+### Heurística de JS e HTTP
+`hasJS(state)`:
+- identifica se o state parece ter script (function run, JSON.parse, etc).
+`hasHTTP(state)`:
+- identifica URLs/indicadores de request.
 
-### `hasHTTP(state)`
-Heurística para identificar chamadas HTTP:
-- presença de URLs
-- endpoint `msging.net/commands`
-- presença de `"method"` e `"uri"`
-
-### `classifyKind(state)`
-Classifica o card para estilização:
-- `decision`: múltiplas saídas
-- `redirect`: tag Redirect
-- `error`: id ou título indica erro
-- `normal`: padrão
+### Classificação do tipo do nó
+`classifyKind(state)`:
+- `decision` se tem múltiplas saídas
+- `redirect` se tiver tag redirect
+- `error` se id/título indicarem erro
+- caso contrário: normal
 
 ---
 
-## 3) Construção do Grafo
+## Construção do grafo
 
 ### `buildGraph(blipJson)`
-Converte o JSON do Blip em estrutura de grafo:
-- cria mapa de nós
-- mapeia saídas
-- conta entradas
-- gera lista deduplicada de arestas
-
-Retorno:
-```
-{ nodes, out, inc, edges }
-```
+- coleta `states` em `blipJson.flow`
+- cria `nodes` (Map id -> state)
+- cria `out` (adjacência: id -> lista de destinos)
+- cria `inc` (indegree: id -> quantas entradas)
+- cria `edges` deduplicadas (lista final para desenhar linhas)
 
 ---
 
-## 4) Organização em Árvores (Forest)
+## Forest / raízes
 
 ### `computeForest(graph)`
-Organiza o grafo em múltiplas árvores:
-- identifica nós isolados
-- define raízes explícitas ou naturais
-- executa BFS para calcular:
-  - parent
-  - depth
-  - children
-- ciclos viram novas raízes
+Objetivo: detectar raízes e componentes.
 
-Retorno:
-```
-{ roots, isolated, parent, depth, children }
-```
+- `isolated`: nó sem entrada e sem saída.
+- `explicitRoots`: states com `root: true`
+- `zeroIn`: nós com `indegree = 0`
+
+Escolhe roots por prioridade:
+1. `explicitRoots` se existirem
+2. senão `zeroIn`
+
+Depois faz BFS para montar:
+- `parent`
+- `depth`
+- `children`
+
+E ainda trata componentes cíclicos (sem indegree0) como novas roots.
 
 ---
 
-## 5) Cálculo de Posições
+## Posicionamento (layout)
 
 ### `computePositions(graph, forest)`
-Calcula coordenadas `{x,y}` dos cards:
-- usa ordenação por folhas (DFS)
-- centraliza pais entre filhos
-- separa árvores horizontalmente
-- posiciona isolados em linha inferior
+Cria `pos` (Map id -> {x,y}):
 
-Usa variáveis CSS para espaçamento.
+- Cada árvore (root) recebe um “bloco” horizontal.
+- Usa DFS para medir “folhas” e distribuir nós.
+- `treeGapX` separa árvores diferentes.
+- `isolated` vão para uma faixa lá embaixo.
 
 ---
 
-## 6) Renderização
+## Renderização
 
 ### `render(blipJson)`
-Função principal:
-1. monta grafo
-2. calcula forest
-3. calcula posições
-4. limpa canvas e SVG
-5. cria cards e badges
-6. adiciona eventos de clique e drag
-7. ajusta layout final e desenha arestas
+1. Monta grafo (`buildGraph`)
+2. Monta forest (`computeForest`)
+3. Calcula posições (`computePositions`)
+4. Limpa o canvas
+5. Cria `div.node` para cada state:
+   - título
+   - badges (root, JS, HTTP)
+   - id e número de saídas
+   - mensagens extraídas
 
-Atualiza estado global:
-```
-CURRENT = { graph, forest, pos }
-```
+Cada nó recebe:
+- `click`: seleciona/deseleciona nó
+- `mousedown`: inicia drag do nó
+
+Após criar tudo:
+- `applyDynamicLevelSpacing()`: corrige espaçamento vertical baseado na altura real
+- `fitToViewport()`: enquadra tudo
+- `drawAllEdges()`: desenha linhas
 
 ---
 
-## 7) Espaçamento Dinâmico
+## Ajuste vertical dinâmico
 
 ### `applyDynamicLevelSpacing()`
-Evita sobreposição vertical:
-- mede altura real dos cards por nível
-- recalcula posição Y
-- aplica novos valores
+Mede o maior card em cada depth e recalcula o `top` de cada nó para não sobrepor.
 
 ---
 
-## 8) Desenho das Arestas
+## Desenho das arestas
 
 ### `drawAllEdges()`
-Para cada ligação:
-- calcula pontos de saída/entrada
-- escolhe formato do path:
-  - loop
-  - descendo
-  - voltando
-  - lateral
-- cria `<path>` no SVG
-- adiciona evento de clique
+Cria `<path>` SVG para cada edge.
 
-### `scheduleEdgesRedraw()`
-Redesenha arestas usando `requestAnimationFrame` para suavidade.
+Ele calcula pontos de saída/entrada (ports):
+- `portX` e `portY` distribuem conexões ao longo do card.
+
+Cria rotas diferentes:
+- A -> A (loop)
+- descendo (depth aumenta): bottom->top
+- voltando/subindo: corredor lateral
+- lateral: right->left
+
+Cada linha:
+- tem `data-key`, `data-from`, `data-to`
+- recebe `click` para seleção da linha
 
 ---
 
-## 9) Seleção
+## Seleção e destaques
 
 ### `toggleNodeSelection(id)`
-Seleciona/deseleciona nó:
-- limpa seleção de edge
-- atualiza infoBar
-- destaca conexões
+Marca o nó como selecionado e destaca as arestas conectadas.
 
 ### `toggleEdgeSelection(key)`
-Seleciona/deseleciona linha:
-- limpa seleção de nó
-- atualiza infoBar
-- destaca nós conectados
+Seleciona uma aresta específica e destaca também os nós envolvidos.
 
 ### `updateHighlights()`
-Aplica classes visuais conforme seleção atual.
+Aplica classes CSS corretas conforme `selectedNodeId` ou `selectedEdgeKey`.
 
 ---
 
-## 10) Busca
+## Busca
 
 ### `applySearch(q)`
-Filtra visualmente os cards:
-- se não contém texto → `.dim`
-- se contém → `.highlight`
-
-Busca em tempo real.
+Desbota nós que não batem e destaca os que batem no texto.
 
 ---
 
-## 11) Zoom e Pan
+## Pan/Zoom
 
-### Estado da View
-```
-view = { x, y, s }
-```
+### `view = {x,y,s}`
+- `x,y`: deslocamento do board
+- `s`: scale
 
 ### `applyView()`
-Aplica `translate` e `scale` no board.
+Aplica `translate + scale` em `#board`.
 
 ### `fitToViewport()`
-Centraliza e ajusta escala para caber tudo na tela.
+Calcula escala e posição para caber todo conteúdo na viewport.
 
-### `zoomAt(x,y,factor)`
-Faz zoom mantendo ponto do mouse fixo no mundo.
+### `zoomAt()`
+Da zoom centrado no ponteiro do mouse.
 
 Eventos:
-- scroll → zoom
-- drag no fundo → pan
-- botões → zoom/reset
+- `mousedown` no fundo: inicia pan
+- `mousemove`: move pan ou arrasta nó
+- `wheel`: zoom
+- botões: zoomIn/zoomOut/reset/fit
 
 ---
 
-## 12) Drag de Nós
-
-Durante drag:
-- converte mouse para coordenada do mundo
-- atualiza `left/top` do card
-- redesenha arestas em tempo real
-
-Ao soltar:
-- reajusta board
-- redesenha arestas
-
-Clique é ignorado se houve movimento.
+## Load JSON
+- `loadFromUrl()` busca `fluxo.json`
+- `loadFromFile(file)` lê upload e faz `render(json)`
 
 ---
 
-## 13) Carregamento do JSON
+## Export (Baixar Imagem)
 
-### `loadFromUrl()`
-Busca `fluxo.json` via `fetch` e renderiza.
+Ao clicar em "Baixar Imagem do Fluxo":
+1. Entra em `export-mode` (card maior + fonte maior)
+2. Zera pan/zoom
+3. Ajusta viewport para “não recortar”
+4. Usa `html2canvas` para capturar em PNG
+5. Faz download via Blob
+6. Restaura tudo ao final
 
-### `loadFromFile(file)`
-Lê arquivo local:
-- `file.text()`
-- `JSON.parse()`
-- `render(json)`
-
----
-
-## ▶️ Fluxo de Execução
-
-1. Usuário carrega JSON
-2. `render()` monta layout
-3. Usuário interage:
-   - zoom
-   - pan
-   - drag
-   - busca
-   - seleção
-
-Tudo ocorre no client-side, sem backend.
+Inclui um cálculo de `captureScale` para evitar canvas gigante:
+- limita lado máximo (`MAX_SIDE`)
+- limita área máxima (`MAX_AREA`)
 
 ---
 
-## 📌 Observações
+## Dependências
+Carregadas via CDN:
+- html2canvas
+- jspdf (está importado mas no momento você está baixando PNG, não PDF)
 
-- Projeto totalmente client-side
-- Nenhuma dependência externa
-- Funciona em qualquer servidor estático
-- Compatível com Firebase Hosting, Vercel, Netlify, GitHub Pages
+---
