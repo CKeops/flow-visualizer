@@ -1,4 +1,4 @@
-# Flow Visualizer [BETA] 0.0.1
+# Flow Visualizer [BETA] 0.0.3
 
 Este projeto é uma página **HTML única** (`index.html`) que renderiza visualmente um **fluxo do Blip (JSON)** como um **grafo**:
 
